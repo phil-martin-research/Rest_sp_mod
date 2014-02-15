@@ -8,16 +8,23 @@ library(nlme)
 library(MuMIn)
 
 #open data files
-setwd("C:/Users/Phil/Documents/My Dropbox/Work/PhD/Publications, Reports and Responsibilities/Chapters/7. Spatial modelling of restoration/Rest_sp_mod/Analysis/Data/Biomass")
+setwd("C:/Users/Phil/Documents/My Dropbox/Work/PhD/Publications, Reports and Responsibilities/Chapters/7. Spatial modelling of restoration/Data/Biomass")
 AGB<-read.csv("Biomass_sites_climate.csv")
 head(AGB)
 
 
 #open climate grid
+
 Grid<-read.csv("Climate_grid.csv")
+str(Grid)
+Grid$M_G_Temp<-as.numeric(levels(Grid$M_G_Temp))[Grid$M_G_Temp]
+Grid$M_Temp<-as.numeric(levels(Grid$M_Temp))[Grid$M_Temp]
+Grid$Sand<-as.numeric(levels(Grid$Sand))[Grid$Sand]
+
 AGB<-merge(AGB,Grid,by="ET_ID")
 AGB<-AGB[complete.cases(AGB),]
 head(AGB)
+
 
 #Calculate degree days
 AGB$M_Months<-AGB$M_Months*30
@@ -29,6 +36,9 @@ AGB$Age_log<-log(AGB$Age+1)
 
 
 head(AGB)
+
+ggplot(AGB,aes(x=Sand,y=AGB))+geom_point()
+
 
 #exploratory analysis
 hist(sqrt(AGB$AGB)) #gives more or less normal distibution of AGB
@@ -49,8 +59,11 @@ hist(AGB$AGB)
 
 
 #
-global_AGB1<-lme(sqrt(AGB)~John,random=~1|ET_ID,data=AGB)
-global_AGB2<-lme(sqrt(AGB)~M_Temp*T_Precip*Age+M_Temp*T_Precip*Age_sq+M_Temp*T_Precip*Age_log+M_Months*M_G_Temp*Age+M_Months*M_G_Temp*Age_sq+M_Months*M_G_Temp*Age_log,random=~1|ET_ID,data=AGB)
+global_AGB1<-lme(sqrt(AGB)~John+Sand,random=~1|ET_ID,data=AGB)
+summary(global_AGB1)
+plot(global_AGB1)
+qqnorm(global_AGB1)
+global_AGB2<-lme(sqrt(AGB)~M_Temp*T_Precip*Age+M_Temp*T_Precip*Age_sq+M_Temp*T_Precip*Age_log+M_Months*M_G_Temp*Age+M_Months*M_G_Temp*Age_sq+M_Months*M_G_Temp*Age_log+Sand,random=~1|ET_ID,data=AGB)
 
 
 plot(global_AGB1)
@@ -64,7 +77,7 @@ qqnorm(global_AGB2)
 summary(global_AGB2)
 
 
-AIC(global_AGB,global_AGB2)
+AIC(global_AGB1,global_AGB2)
 
 #and now do model averaging by running the dredge function
 getAllTerms(global_AGB2)
@@ -77,6 +90,11 @@ MS1<-dredge(global_AGB2,evaluate=T,rank=AICc,trace=T,REML=F,m.max=5,subset=dc(Ag
 poss_mod<- get.models(MS1, subset = delta<7)
 modsumm <- model.sel(poss_mod, rank = "AICc")
 modsumm<-subset(modsumm,modsumm$delta<7)
+modsumm
+
+predict(modsumm)
+
+
 
 #output importance values
 importance<-data.frame(Variable=c("Intercept",labels(importance(modsumm))),Importance=c(1,as.vector(importance(modsumm))))
