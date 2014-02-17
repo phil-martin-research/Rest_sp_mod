@@ -1,0 +1,8 @@
+"Variable","Importance"
+"Intercept",1
+"Age_log",1
+"M_Months",1
+"Age_log:M_Months",1
+"M_Temp",0.713083437061112
+"Age_log:M_Temp",0.59438371214162
+"Sand",0.0193083023205706
