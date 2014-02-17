@@ -24,6 +24,7 @@ str(Grid)
 Grid$M_G_Temp<-as.numeric(levels(Grid$M_G_Temp))[Grid$M_G_Temp]
 Grid$M_Temp<-as.numeric(levels(Grid$M_Temp))[Grid$M_Temp]
 Grid$Sand<-as.numeric(levels(Grid$Sand))[Grid$Sand]
+Grid$M_Months<-Grid$M_Months*30
 
 AGB<-merge(AGB,Grid,by="ET_ID")
 AGB<-AGB[complete.cases(AGB),]
@@ -66,11 +67,27 @@ MS1<-dredge(global_AGB2,evaluate=T,rank=AICc,trace=T,REML=F,subset=!(Age&&Age_lo
 poss_mod<- get.models(MS1, subset = delta<7)
 modsumm <- model.sel(poss_mod, rank = "AICc",fit=T)
 modsumm<-subset(modsumm,delta<=7)
+modsumm
+
+Mod1<-lmer(sqrt(AGB)~M_Months*Age_log+M_Temp*Age_log+(1|ET_ID)+(1|Allo_type),data=AGB)
+Mod2<-lmer(sqrt(AGB)~M_Months*Age_log+(1|ET_ID)+(1|Allo_type),data=AGB)
+Mod3<-lmer(sqrt(AGB)~M_Months*Age_log+M_Temp+(1|ET_ID)+(1|Allo_type),data=AGB)
+Mod4<-lmer(sqrt(AGB)~M_Months*Age_log+M_Temp+Sand+(1|ET_ID)+(1|Allo_type),data=AGB)
+
+modsumm$R_squared<-c(r.squaredGLMM(Mod1)[1],r.squaredGLMM(Mod2)[1],r.squaredGLMM(Mod3)[1],r.squaredGLMM(Mod4)[1])
+
+#output model selection table
+setwd("C:/Users/Phil/Documents/My Dropbox/Work/PhD/Publications, Reports and Responsibilities/Chapters/7. Spatial modelling of restoration/Rest_sp_mod/Results")
+write.csv(modsumm,"Biomass_mod_sel.csv",row.names=F)
+
 Averaged<-model.avg(modsumm,fit=T)
 
 #output importance values
+setwd("C:/Users/Phil/Documents/My Dropbox/Work/PhD/Publications, Reports and Responsibilities/Chapters/7. Spatial modelling of restoration/Rest_sp_mod/Results")
 importance<-data.frame(Variable=c("Intercept",labels(importance(modsumm))),Importance=c(1,as.vector(importance(modsumm))))
 importance
+
+write.csv(importance,"Biomass_importance.csv",row.names=F)
 
 #model of interaction between Age and growing period
 head(AGB)
@@ -104,7 +121,7 @@ theme_set(theme_bw(base_size=20))
 Age_days<-ggplot(data=AGB,aes(x=(exp(Age_log))-1,y=AGB,colour=as.factor(M_Months2)))+geom_point(size=4,shape=1)
 Age_days2<-Age_days+geom_line(data=newdata,aes(y=pred^2,group=as.factor(M_Months),colour=as.factor(M_Months)),size=2)
 Age_days3<-Age_days2+theme(panel.grid.major = element_line(colour =NA),panel.grid.minor = element_line(colour =NA),panel.border = element_rect(size=1.5,colour="black",fill=NA))
-Age_days4<-Age_days3+scale_colour_brewer("Estimated growing\nday categories",palette="Set1")
+Age_days4<-Age_days3+scale_colour_brewer("Estimated growing/nday categories",palette="Set1")
 Age_days5<-Age_days4+ylab(expression(paste("Aboveground biomass (Mg ",ha^-1,")")))+xlab("Time since disturbance (Years)")
 
 #model of interaction between Age and Temp
@@ -142,7 +159,7 @@ Age_temp<-ggplot(data=AGB,aes(x=(exp(Age_log))-1,y=AGB,colour=as.factor(M_Temp2)
 Age_temp2<-Age_temp+geom_line(data=newdata,aes(y=pred^2,group=as.factor(M_Temp),colour=as.factor(M_Temp)),size=2)
 Age_temp2
 Age_temp3<-Age_temp2+theme(panel.grid.major = element_line(colour =NA),panel.grid.minor = element_line(colour =NA),panel.border = element_rect(size=1.5,colour="black",fill=NA))
-Age_temp4<-Age_temp3+scale_colour_brewer("Annual mean\ntemperature",palette="Set1")
+Age_temp4<-Age_temp3+scale_colour_brewer("Annual mean/ntemperature",palette="Set1")
 Age_temp5<-Age_temp4+ylab(expression(paste("Aboveground biomass (Mg ",ha^-1,")")))+xlab("Time since disturbance (Years)")
 
 #model of interaction between Temp and age
@@ -178,7 +195,7 @@ Temp_age
 Temp_age2<-Temp_age+geom_line(data=newdata,aes(y=pred^2,group=as.factor((exp(Age_log)-1)),colour=as.factor(exp(Age_log)-1)),size=2)
 Temp_age2
 Temp_age3<-Temp_age2+theme(panel.grid.major = element_line(colour =NA),panel.grid.minor = element_line(colour =NA),panel.border = element_rect(size=1.5,colour="black",fill=NA))
-Temp_age4<-Temp_age3+scale_colour_brewer("Annual mean\ntemperature",palette="Set1")
+Temp_age4<-Temp_age3+scale_colour_brewer("Annual mean/ntemperature",palette="Set1")
 Temp_age5<-Temp_age4+ylab(expression(paste("Aboveground biomass (Mg ",ha^-1,")")))+xlab("Mean annual temperature")
 
 ######################################################
@@ -217,7 +234,7 @@ Days_age
 Days_age2<-Days_age+geom_line(data=newdata,aes(y=pred^2,group=as.factor((exp(Age_log)-1)),colour=as.factor(exp(Age_log)-1)),size=2)
 Days_age2
 Days_age3<-Days_age2+theme(panel.grid.major = element_line(colour =NA),panel.grid.minor = element_line(colour =NA),panel.border = element_rect(size=1.5,colour="black",fill=NA))
-Days_age4<-Days_age3+scale_colour_brewer("Time since\nlast disturbance\n(years)",palette="Set1")
+Days_age4<-Days_age3+scale_colour_brewer("Time since/nlast disturbance/n(years)",palette="Set1")
 Days_age5<-Days_age4+ylab(expression(paste("Aboveground biomass (Mg ",ha^-1,")")))+xlab("Mean number of estimated growing days per year")
 
 #plot all plots together
@@ -236,7 +253,42 @@ Grid_rep<-Grid_rep[complete.cases(Grid_rep),]
 
 Trop_pred<-predict(Averaged,Grid_rep,se.fit=T)
 
-Grid_rep$pred<-Trop_pred$fit
-Grid_rep$pred<-Trop_pred$fit
+Grid_rep$pred<-Trop_pred$fit^2
+Grid_rep$UCI<-((Trop_pred$fit)+(Trop_pred$se*1.96))^2
+Grid_rep$LCI<-((Trop_pred$fit)-(Trop_pred$se*1.96))^2
 
 
+#export grid
+Grid_20_df<-subset(Grid_rep,Age==20)
+Grid_40<-subset(Grid_rep,Age==40)
+Grid_60<-subset(Grid_rep,Age==60)
+
+setwd("C:/Users/Phil/Documents/My Dropbox/Work/PhD/Publications, Reports and Responsibilities/Chapters/7. Spatial modelling of restoration/Rest_sp_mod/Results")
+write.csv(Grid_20,"20_yr_pred.csv",row.names=F)
+write.csv(Grid_40,"40_yr_pred.csv",row.names=F)
+write.csv(Grid_60,"60_yr_pred.csv",row.names=F)
+
+#load in shapefile
+library(rgdal)
+library(foreign)
+setwd("C:/Users/Phil/Desktop/All_species")
+Land_grid<-read.dbf("2deg_land_grid.dbf")
+Land_grid<-subset(Land_grid,select=-c(2:22))
+Land_grid2<-data.frame(ET_ID=unique(Land_grid$ET_ID))
+Land_grid20<- merge(Land_grid2, Grid_20, by="ET_ID", all=TRUE)
+head(Land_grid20)
+write.dbf(Land_grid20, "2deg_land_grid.dbf")
+
+
+#load in data
+detach("package:lme4", unload=TRUE)
+Grid20<-readOGR("2deg_land_grid.shp","2deg_land_grid")
+Grid20@data$id<-rownames(Grid20@data)
+Grid20.df<-fortify(Grid20)
+head(Grid20.df)
+Grid20.df2<-join(Grid20.df, Grid20@data, by="id")
+head(Grid20.df2)
+
+ggp <- ggplot(data=Grid20.df2, aes(x=long, y=lat, group=group))
+ggp+geom_polygon(aes(fill=pred))
+ggp+geom_polygon(aes(fill=T_Precip))
