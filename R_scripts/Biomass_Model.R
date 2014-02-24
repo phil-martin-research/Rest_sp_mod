@@ -5,6 +5,9 @@
 #Author: Phil Martin
 #date of edit: 23/02/14
 
+#clear environment
+rm(list=ls())
+
 #load in packages
 library(ggplot2)
 library(plyr)
@@ -13,6 +16,7 @@ library(nlme)
 library(lme4)
 library(MuMIn)
 library(gridExtra)
+library(ape)
 
 #open data files
 setwd("C:/Users/Phil/Documents/My Dropbox/Work/PhD/Publications, Reports and Responsibilities/Chapters/7. Spatial modelling of restoration/Data/Biomass")
@@ -23,7 +27,6 @@ head(AGB)
 Grid<-read.csv("Climate_grid.csv")
 Grid$M_Temp<-as.numeric(levels(Grid$M_Temp))[Grid$M_Temp]
 Grid$M_Months<-Grid$M_Months*30
-Grid$Deficit<-Grid$Deficit*10
 
 AGB<-merge(AGB,Grid,by="ET_ID")
 AGB<-AGB[complete.cases(AGB),]
@@ -32,8 +35,11 @@ AGB<-AGB[complete.cases(AGB),]
 #since I only want to predict to ~20 years
 AGB<-subset(AGB,Age<=40)
 
+
 #Calculate degree day years following Johnson et al
 AGB$John<-(AGB$Age*AGB$M_Months*AGB$M_G_Temp)/365
+
+pairs(AGB[c(21,7,10,11,12,13,14,15,16,17,3,4,5)])
 
 #adjust lat so that spatial autocorrelation can be accounted for
 AGB$Lat2<-AGB$Lat+(rnorm(length(AGB$Lat),0,0.00001))
@@ -62,29 +68,41 @@ pairs(AGB)
 #null models to check for best random effect structure
 null.1<-lme(sqrt(AGB)~1,random=~1|Study,correlation = corExp(1, form = ~ Lat2 + Long),data=AGB)
 null.2<-lme(sqrt(AGB)~1,random=~1|Allo_type,correlation = corExp(1, form = ~ Lat2 + Long),data=AGB)
-c(AICc(null.1),AICc(null.2))
+null.3<-lme(sqrt(AGB)~1,random=~1|Allo_type/Study,correlation = corExp(1, form = ~ Lat2 + Long),data=AGB)
+
+c(AICc(null.1),AICc(null.2),AICc(null.3))
 
 #explore the best correlation structure
-null.3<-lme(sqrt(AGB)~1,random=~1|Study,correlation = corGaus(1, form = ~ Lat2 + Long),data=AGB)
-null.4<-lme(sqrt(AGB)~1,random=~1|Study,correlation = corLin(1, form = ~ Lat2 + Long),data=AGB)
-null.5<-lme(sqrt(AGB)~1,random=~1|Study,correlation = corSpher(1, form = ~ Lat2 + Long),data=AGB)
-c(AICc(null.3),AICc(null.4),AICc(null.5))
+null.4<-lme(sqrt(AGB)~1,random=~1|Allo_type/Study,correlation = corGaus(1, form = ~ Lat2 + Long),data=AGB)
+null.5<-lme(sqrt(AGB)~1,random=~1|Allo_type/Study,correlation = corLin(1, form = ~ Lat2 + Long),data=AGB)
+null.6<-lme(sqrt(AGB)~1,random=~1|Allo_type/Study,correlation = corSpher(1, form = ~ Lat2 + Long),data=AGB)
+c(AICc(null.3),AICc(null.5),AICc(null.6))
 
 
 #models based on Johnson et al 2000 model
 #one including a variabel describing sand content
 #and one not including this
-John_model<-lme(sqrt(AGB)~John+Sand,random=~1|Study,correlation = corExp(1, form = ~ Lat2 + Long),data=AGB)
-Deg_years_model<-lme(sqrt(AGB)~John,random=~1|Study,correlation = corExp(1, form = ~ Lat2 + Long),data=AGB)
+John_model<-lme(sqrt(AGB)~John+Sand,random=~1|Allo_type/Study,correlation = corExp(1, form = ~ Lat2 + Long),data=AGB)
+Deg_years_model<-lme(sqrt(AGB)~John,random=~1|Allo_type/Study,correlation = corExp(1, form = ~ Lat2 + Long),data=AGB)
+
+Model1<-lme(log(AGB+1)~Age+Deficit+Sand,random=~1|Allo_type/Study,correlation = corExp(1, form = ~ Lat2 + Long),data=AGB)
+summary(Model1)
+plot(Model1)
+plot(AGB$Sand,resid(Model1))
+AICc(Model1)
 
 #our global model to include mean temp, mean precipitation
 #number of growing days, mean temp during growing season
-#sandiness of soils, aridity, water deficit
+#sandiness of soils, water deficit
 #and age
-global_AGB2<-lme(sqrt(AGB)~M_Temp*T_Precip*Age+M_Months*M_G_Temp*Age+Sand+Arid*Age+Age*Deficit,random=~1|Study,correlation = corExp(1, form = ~ Lat2 + Long),data=AGB)
+global_AGB2<-lme(log(AGB+1)~M_Temp*T_Precip*Age*Sand+M_Months*M_G_Temp*Age*Sand+Age*Deficit*Sand,random=~1|Study,correlation = corExp(1, form = ~ Lat2 + Long),data=AGB)
+summary(global_AGB2)
+plot(global_AGB2)
+plot(AGB$Age,AGB$AGB)
+qqnorm(global_AGB2)
 
 #Now do model averaging by running the dredge function
-MS1<-dredge(global_AGB2,evaluate=T,rank=AICc,trace=T,REML=F,subset=!(M_Temp&&M_G_Temp)&!(M_Months&&T_Precip)&!(M_Months&&Arid)&!(M_Temp&&Arid)&!(T_Precip&&Arid)&!(M_G_Temp&&Arid)&!(M_G_Temp&&Deficit))
+MS1<-dredge(global_AGB2,evaluate=T,rank=AICc,trace=T,REML=F,subset=!(M_Temp&&M_G_Temp)&!(M_Months&&T_Precip)&!(M_Months&&M_Temp)&!(T_Precip&&Deficit)&!(M_G_Temp&&Deficit)&!(M_Months&&Deficit)&!(M_Temp&&Deficit))
 
 #subset models with delta<7 (to remove implausible models)
 poss_mod<- get.models(MS1, subset = delta<7)
@@ -95,8 +113,12 @@ modsumm
 
 
 #2 models come out on top
-Mod1<-lme(sqrt(AGB+1)~M_Months+Age,random=~1|Study,correlation = corExp(1, form = ~ Lat2 + Long),data=AGB)
+Mod1<-lme(sqrt(AGB)~M_Months+log(Age),random=~1|Study,correlation = corExp(1, form = ~ Lat2 + Long),data=AGB)
 Mod2<-lme(sqrt(AGB)~Age+Sand,random=~1|Study,correlation = corExp(1, form = ~ Lat2 + Long),data=AGB)
+
+
+AICc(Mod1)
+AICc(Model1)
 
 #add rsquared to model ranking table
 modsumm$R_squared<-c(r.squaredGLMM(Mod1)[1],r.squaredGLMM(Mod2)[1])
@@ -249,7 +271,7 @@ Grid_rep$pred<-ifelse(Grid_rep$M_G_Temp==0,0,Grid_rep$pred)
 Grid_rep$UCI<-((Trop_pred$fit)+(Trop_pred$se*1.96))^2
 Grid_rep$UCI<-ifelse(Grid_rep$M_G_Temp==0,0,Grid_rep$pred)
 Grid_rep$LCI<-((Trop_pred$fit)-(Trop_pred$se*1.96))^2
-Grid_rep$UCI<-ifelse(Grid_rep$M_G_Temp==0,0,Grid_rep$pred)
+Grid_rep$LCI<-ifelse(Grid_rep$M_G_Temp==0,0,Grid_rep$pred)
 
 
 #export grid
@@ -274,6 +296,7 @@ Land_grid2<-data.frame(ET_ID=unique(Land_grid$ET_ID))
 Land_grid20<- merge(Land_grid2, Grid_20, by="ET_ID", all=TRUE)
 head(Land_grid20)
 write.dbf(Land_grid20, "2deg_land_grid.dbf")
+
 
 
 #load in data
