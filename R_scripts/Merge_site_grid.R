@@ -30,7 +30,8 @@ for (i in 1:length(Count_ID$ET_ID)) {
 }
 
 #stick all these together into one csv
-Pres_grid2<-do.call(rbind, lapply(list.files(path="C:/Users/Phil/Documents/My Dropbox/Work/PhD/Publications, Reports and Responsibilities/Chapters/7. Spatial modelling of restoration/Rest_sp_mod/Analysis/Data/Bird biodiversity data/Site_data/Pres_abs_grid"), read.csv, header=TRUE, sep=","))
+setwd("C:/Users/Phil/Documents/My Dropbox/Work/PhD/Publications, Reports and Responsibilities/Chapters/7. Spatial modelling of restoration/Data/Bird biodiversity data/Site_data/Pres_abs_grid")
+Pres_grid2<-do.call(rbind, lapply(list.files(path="C:/Users/Phil/Documents/My Dropbox/Work/PhD/Publications, Reports and Responsibilities/Chapters/7. Spatial modelling of restoration/Data/Bird biodiversity data/Site_data/Pres_abs_grid"), read.csv))
 
 
 #work out number of sites per grid cell
@@ -55,11 +56,10 @@ for (i in 1:length(Count_ID$ET_ID)) {
   
 
 #stick all these together into one csv
-Traits2<-do.call(rbind, lapply(list.files(path="C:/Users/Phil/Documents/My Dropbox/Work/PhD/Publications, Reports and Responsibilities/Chapters/7. Spatial modelling of restoration/Rest_sp_mod/Analysis/Data/Bird biodiversity data/Site_data/Pres_abs_grid_site"), read.table, header=TRUE, sep=","))
+setwd("C:/Users/Phil/Documents/My Dropbox/Work/PhD/Publications, Reports and Responsibilities/Chapters/7. Spatial modelling of restoration/Data/Bird biodiversity data/Site_data/Pres_abs_grid_site")
+Traits2<-do.call(rbind, lapply(list.files(path="C:/Users/Phil/Documents/My Dropbox/Work/PhD/Publications, Reports and Responsibilities/Chapters/7. Spatial modelling of restoration/Data/Bird biodiversity data/Site_data/Pres_abs_grid_site"), read.table, header=TRUE, sep=","))
 head(Traits2)
 head(Pres_grid2)
-
-
 
 #merge the two datasets
 Comb<-merge(x=Pres_grid2,y=Traits2,by="Unique",all.x=T)
@@ -78,13 +78,30 @@ Age_set<-Age_set[complete.cases(Age_set),]
 Age_set<-unique(Age_set)
 
 Comb2<-merge(Comb,Age_set,by.x=c("ET_ID.x","Rep_ID"),by.y=c("Comb.ET_ID.x","Comb.Rep_ID"),all=T)
+str(Comb2)
+
+#subset to only include site number
+#to enable a spatial join with forest cover data
+
+str(Comb)
+Sub_comb<-Comb[c(5,7,10,19,14,15)]
+Sub_comb2<-Sub_comb[complete.cases(Sub_comb),]
+Sub_comb3<-unique(Sub_comb2)
+head(Sub_comb3)
+summary(Comb2$ET_ID.x)
+summary(Sub_comb3$ET_ID.x)
+
+
+
+Comb_coord<-merge(Comb2,Sub_comb3,by=c("ET_ID.x","Rep_ID"),all.x=T,all.y=F)
+
 
 
 #combine with traits and forest cover
-setwd("C:/Users/Phil/Documents/My Dropbox/Work/PhD/Publications, Reports and Responsibilities/Chapters/7. Spatial modelling of restoration/Rest_sp_mod/Analysis/Data/Bird biodiversity data/Site_data/Traits")
+setwd("C:/Users/Phil/Documents/My Dropbox/Work/PhD/Publications, Reports and Responsibilities/Chapters/7. Spatial modelling of restoration/Data/Bird biodiversity data/Site_data/Traits")
 Sp_traits<-read.csv("Traits.csv")
 head(Sp_traits)
-Comb_traits<-merge(Comb2,Sp_traits,by.x="Sp_ID",by.y="Species_ID2",all.x=T)
+Comb_traits<-merge(Comb_coord,Sp_traits,by.x="Sp_ID",by.y="Species_ID2",all.x=T)
 Cover<-read.csv("Forest_cov.csv")
 head(Comb_traits)
 Comb_traits_cov<-merge(Comb_traits,Cover,by.x="ET_ID.x",by.y="ET_ID",all.x=T)
@@ -92,24 +109,16 @@ head(Comb_traits_cov)
 
 #tidy up dataframe to only include data from columns we want
 str(Comb_traits_cov)
-Comb_traits2<-Comb_traits_cov[,-c(4:11,13:19,21:23,26)]
-head(Comb_traits2)
-colnames(Comb_traits2)<-c("Grid","Sp_ID","Site_ID","Pres","Age","F_dep","Disp","Cover")
-head(Comb_traits2)
-New_IDs<-unique(data.frame(Grid=Comb_traits2$Grid,Site_ID=Comb_traits2$Site_ID))
-length(New_IDs$Grid)
-New_IDs$ID<-seq(1:40)
-head(New_IDs)
-New_comb<-merge(Comb_traits2,New_IDs,by=c("Grid","Site_ID"),all=T)
-head(New_comb)
-New_comb2<-New_comb[,-c(2)]
+myvars <- c("ET_ID.x", "Sp_ID", "Rep_ID","Present","Comb.Age","SiteID.y","Lat.y","Long.y","Forest_dep","Av_disp.1","Cover")
+Comb_traits2<-Comb_traits_cov[myvars]
+str(Comb_traits2)
+colnames(Comb_traits2)<-c("Grid","Sp_ID","Rep_ID","Pres","Age","Site_ID","Lat","Long","F_dep","Disp","Cover")
 
-
-setwd("C:/Users/Phil/Documents/My Dropbox/Work/PhD/Publications, Reports and Responsibilities/Chapters/7. Spatial modelling of restoration/Rest_sp_mod/Analysis/Data/Bird biodiversity data/Site_data")
+setwd("C:/Users/Phil/Documents/My Dropbox/Work/PhD/Publications, Reports and Responsibilities/Chapters/7. Spatial modelling of restoration/Data/Bird biodiversity data/Site_data")
 Range<-read.csv("BL_Range.csv")
 head(New_comb2)
 head(Range)
-New_comb3<-merge(New_comb2,Range,by="Sp_ID")
+New_comb3<-merge(Comb_traits2,Range,by="Sp_ID")
 head(New_comb3)
 
 write.csv(New_comb3,"Pres_abs.csv")
