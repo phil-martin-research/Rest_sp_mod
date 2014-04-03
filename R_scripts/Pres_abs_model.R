@@ -20,9 +20,10 @@ library(MuMIn)
 #import files
 setwd("C:/Users/Phil/Documents/My Dropbox/Work/PhD/Publications, Reports and Responsibilities/Chapters/7. Spatial modelling of restoration/Data/Bird biodiversity data/Site_data")
 Abs_pres<-read.csv("Pres_abs.csv")
+Cov<-read.csv("Bird_sites_cov.csv")
 head(Abs_pres)
-
-Abs_pres$CV_0.05<-Abs_pres$Std_0.05/Abs_pres$Cov_0.05
+head(Cov)
+PA<-merge(Abs_pres,Cov,by.x="Site_ID",by.y="SiteID")
 
 #test models
 #changed to included hierarchical site nested within grid ID
@@ -30,71 +31,80 @@ Abs_pres$CV_0.05<-Abs_pres$Std_0.05/Abs_pres$Cov_0.05
 #the grid cell, rather than the probability of it being present at the broader scale
 
 #remove rows with missing data
-Abs_pres<-Abs_pres[complete.cases(Abs_pres),]
-Abs_pres$Site_ID2<-as.factor(Abs_pres$Site_ID)
-str(Abs_pres)
-
-M0<-glmer(Pres~1+(1|Sp_ID)+(1|Grid)+(1|Site_ID2),data=Abs_pres,family=binomial)
-
-M1<-glmer(Pres~Cov_0.05*F_dep+CV_0.05*F_dep+EOO+Disp+(1|Sp_ID)+(1|Grid)+(1|Site_ID2),
-          data=Abs_pres,family=binomial)
+PA<-PA[complete.cases(PA),]
+PA2<-subset(PA,EOO>10)
+PA$Site_ID2<-as.factor(PA$Site_ID)
+str(PA)
 
 
-plot(M1)
+M0<-glmer(Pres~1+(1|Sp_ID)+(1|Grid)+(1|Site_ID2),data=PA,family=binomial)
+M1<-glmer(Pres~Mean_0.05*F_dep+F_dep*EOO+(1|Sp_ID)+(1|Grid)+(1|Site_ID2),
+          data=PA,family=binomial)
+M2<-glmer(Pres~Mean_0.05*F_dep+EOO+(1|Sp_ID)+(1|Grid)+(1|Site_ID2),
+          data=PA,family=binomial)
+M3<-glmer(Pres~Mean_0.05+F_dep+EOO+(1|Sp_ID)+(1|Grid)+(1|Site_ID2),
+          data=PA,family=binomial)
+M4<-glmer(Pres~Mean_0.05*F_dep+(1|Sp_ID)+(1|Grid)+(1|Site_ID2),
+          data=PA,family=binomial)
+M5<-glmer(Pres~Mean_0.05+F_dep+(1|Sp_ID)+(1|Grid)+(1|Site_ID2),
+          data=PA,family=binomial)
+M6<-glmer(Pres~Mean_0.05+(1|Sp_ID)+(1|Grid)+(1|Site_ID2),
+          data=PA,family=binomial)
+M7<-glmer(Pres~F_dep+(1|Sp_ID)+(1|Grid)+(1|Site_ID2),
+          data=PA,family=binomial)
+M8<-glmer(Pres~EOO+(1|Sp_ID)+(1|Grid)+(1|Site_ID2),
+          data=PA,family=binomial)
+M9<-glmer(Pres~EOO*F_dep+(1|Sp_ID)+(1|Grid)+(1|Site_ID2),
+          data=PA,family=binomial)
+M10<-glmer(Pres~EOO*Mean_0.05+(1|Sp_ID)+(1|Grid)+(1|Site_ID2),
+          data=PA,family=binomial)
 
 summary(M1)
 
-r.squaredGLMM(M1)
 
 #model averaging of presence
-Model_sel<-dredge(global.model=M1,rank=AICc,evaluate=T,trace=T)
-Sel<-get.models(Model_sel,subset=delta<7)
-modsumm<-model.sel(Sel, rank = "AICc",fit=T)
+mod.list<-list(M0,M1,M2,M3,M4,M5,M6,M7,M8,M9,M10)
+modsumm<-model.sel(object=mod.list,rank = "AICc",fit=T)
 modsumm
 Averaged<-model.avg(modsumm,subset=delta<7,fit=T)
 Averaged
-importance(Averaged)
+round(importance(Averaged),2)
 
 #predict for cover and forest dependance
-summary(Abs_pres)
-df_preds<-data.frame(cov_norm=rep(seq(-40,28,length.out=100),4),
+summary(PA)
+df_preds<-data.frame(Mean_0.05=rep(seq(0,1,length.out=100),4),
            F_dep=as.factor(rep(c("High","Medium","Low","Non-forest"),each=100)),
-           EOO_norm=mean(Abs_pres$EOO_norm))
+           EOO=mean(PA$EOO))
 
-preds<-predict(Averaged,newdata=df_preds,se.fit=T,backtransform = T)
-
+preds<-predict(Averaged,newdata=df_preds,se.fit=T,backtransform=T)
 
 df_preds$preds<-preds$fit
 df_preds$uci<-df_preds$preds+(1.96*preds$se.fit)
 df_preds$lci<-df_preds$preds-(1.96*preds$se.fit)
 
+plot(df_preds$Mean_0.05,df_preds$preds,ylim=c(0,0.5))
+points(df_preds$Mean_0.05,df_preds$uci)
+points(df_preds$Mean_0.05,df_preds$lci)
+
 df_preds$F_dep=factor(df_preds$F_dep, levels(df_preds$F_dep)[c(1,3,2,4)])
 
-library(reshape2)
-str(Abs_pres)
-Abs_pres_cov<-Abs_pres[,c(5,10,17)]
 
-str(Abs_pres_data)
-Abs_pres_data<-ddply(Abs_pres_cov, .(cov_norm,F_dep), summarise,
-   mean_pres=mean(Pres),min_SD=mean(Pres)-sd(Pres),
-   max_SD =mean(Pres)+sd(Pres))
 
 Abs_pres_data
 
-ggplot(data=Abs_pres,aes(x=cov_norm,y=Pres))+geom_jitter()+facet_wrap(~F_dep)+geom_smooth()
+ggplot(data=PA,aes(x=Mean_0.05,y=Pres))+facet_wrap(~F_dep)+geom_smooth(method="lm",formula=y ~ poly(x, 3))
 
-theme_set(theme_bw(base_size=14))
-a<-ggplot(data=df_preds,aes(x=cov_norm+mean(Abs_pres$cov),y=preds,group=F_dep,colour=F_dep,ymax=NULL,ymin=NULL),size=1)+geom_line()+facet_wrap(~F_dep)
-b<-a+geom_line(data=df_preds,aes(y=uci,fill=F_dep,group=F_dep,colour=F_dep,ymax=NULL,ymin=NULL),lty=2)
+theme_set(theme_bw(base_size=1))
+a<-ggplot(data=df_preds,aes(x=Mean_0.05,y=preds,group=F_dep,colour=F_dep),size=1)+geom_line()+facet_wrap(~F_dep)
+b<-a+geom_line(data=df_preds,aes(y=uci,group=F_dep,colour=F_dep),lty=2)
 c<-b+geom_line(data=df_preds,aes(y=lci,fill=F_dep,group=F_dep,colour=F_dep,ymax=NULL,ymin=NULL),lty=2)
 d<-c+theme(panel.grid.major = element_line(colour =NA),panel.grid.minor = element_line(colour =NA),panel.border = element_rect(size=1.5,colour="black",fill=NA))
-e<-d+scale_colour_brewer("Forest dependancy",palette="Set1")+xlab("Percentage tree cover in 0.1 degree cell")
-e+ylab("Probability of presence")
+e<-d+scale_colour_brewer("Forest dependancy",palette="Set1")+xlab(expression(paste("Percentage forest cover in 35 ",km^2," buffer",sep="")))
+e+ylab("Probability of presence")+theme(axis.text.x  = element_text(size=10),axis.text.y  = element_text(size=10))+ theme(legend.position="none")
 setwd("C:/Users/Phil/Documents/My Dropbox/Work/PhD/Publications, Reports and Responsibilities/Chapters/7. Spatial modelling of restoration/Rest_sp_mod/Figures")
 ggsave(filename="Cov_pres.pdf",width=8,height=4,units="in",dpi=400)
 
-
-
+round(importance(Averaged),2)
 
 
 
