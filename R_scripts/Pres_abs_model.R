@@ -70,6 +70,19 @@ Averaged<-model.avg(modsumm,subset=delta<7,fit=T)
 Averaged
 round(importance(Averaged),2)
 
+
+
+#output model ranks
+AICc_sel<-subset(modsumm,delta<=7)
+AICc_sel$R_sq<-c(r.squaredGLMM(M2)[1],r.squaredGLMM(M3)[1])
+setwd("C:/Users/Phil/Documents/My Dropbox/Work/PhD/Publications, Reports and Responsibilities/Chapters/7. Spatial modelling of restoration/Rest_sp_mod/Results")
+write.csv(AICc_sel,"PA_mod.csv")
+
+#output importance values with model averaged estimates
+Imp_pres<-round(importance(Averaged),2)
+write.csv(Imp_pres,"PA_Imp.csv")
+
+
 #predict for cover and forest dependance
 summary(PA)
 df_preds<-data.frame(Mean_0.05=rep(seq(0,1,length.out=100),4),
@@ -94,7 +107,7 @@ Abs_pres_data
 
 ggplot(data=PA,aes(x=Mean_0.05,y=Pres))+facet_wrap(~F_dep)+geom_smooth(method="lm",formula=y ~ poly(x, 3))
 
-theme_set(theme_bw(base_size=1))
+theme_set(theme_bw(base_size=10))
 a<-ggplot(data=df_preds,aes(x=Mean_0.05,y=preds,group=F_dep,colour=F_dep),size=1)+geom_line()+facet_wrap(~F_dep)
 b<-a+geom_line(data=df_preds,aes(y=uci,group=F_dep,colour=F_dep),lty=2)
 c<-b+geom_line(data=df_preds,aes(y=lci,fill=F_dep,group=F_dep,colour=F_dep,ymax=NULL,ymin=NULL),lty=2)
@@ -107,25 +120,62 @@ ggsave(filename="Cov_pres.pdf",width=8,height=4,units="in",dpi=400)
 round(importance(Averaged),2)
 
 
+#predict for EOO and forest dependance
+summary(PA)
+tapply(PA$EOO,PA$F_dep,min)
+tapply(PA$EOO,PA$F_dep,max)
 
-plot(df_preds$cov_norm,df_preds$preds)
+df_preds_EOO<-data.frame(EOO=c(seq(1,3.24e+07,length.out=100),seq(533,9.51e+07,length.out=100),
+                           seq(110,1.10e+08,length.out=100),seq(0,1.36e+08,length.out=100)),
+           F_dep=as.factor(rep(c("High","Medium","Low","Non-forest"),each=100)),
+           Mean_0.05=mean(PA$Mean_0.05))
 
-#get dataset of all species in all grid cells
-setwd("C:/Users/Phil/Desktop/All_species/Species_grid_csv_2/")
-Sp_grid<-read.csv("Grid_Pres_Abs.csv")
-setwd("C:/Users/Phil/Documents/My Dropbox/Work/PhD/Publications, Reports and Responsibilities/Chapters/7. Spatial modelling of restoration/Rest_sp_mod/Analysis/Data/Bird biodiversity data/Site_data/Traits")
-Sp_traits<-read.csv("Traits.csv")
-head(Sp_traits)
-Comb_traits<-merge(Sp_grid,Sp_traits,by.x="Sp_ID",by.y="Species_ID2",all.x=T)
-setwd("C:/Users/Phil/Documents/My Dropbox/Work/PhD/Publications, Reports and Responsibilities/Chapters/7. Spatial modelling of restoration/Rest_sp_mod/Analysis/Data/Bird biodiversity data/Site_data")
-Range<-read.csv("BL_Range.csv")
-Comb_traits2<-merge(Comb_traits,Range,by="Sp_ID")
+preds_EOO<-predict(Averaged,newdata=df_preds_EOO,se.fit=T,backtransform=T)
 
-setwd("C:/Users/Phil/Documents/My Dropbox/Work/PhD/Publications, Reports and Responsibilities/Chapters/7. Spatial modelling of restoration/Rest_sp_mod/Analysis/Data/Bird biodiversity data/Site_data/Traits")
-Cover<-read.csv("Forest_cov.csv")
-head(Comb_traits)
-Comb_traits_cov<-merge(Comb_traits2,Cover,by.x="ET_ID",by.y="ET_ID",all.x=T)
-head(Comb_traits_cov)
+df_preds_EOO$preds<-preds_EOO$fit
+df_preds_EOO$uci<-df_preds_EOO$preds+(1.96*preds_EOO$se.fit)
+df_preds_EOO$lci<-df_preds_EOO$preds-(1.96*preds_EOO$se.fit)
 
-summary(Comb_traits_cov)
 
+df_preds_EOO$F_dep=factor(df_preds_EOO$F_dep, levels(df_preds_EOO$F_dep)[c(1,3,2,4)])
+
+#make plots
+require(scales)
+theme_set(theme_bw(base_size=10))
+a<-ggplot(data=df_preds_EOO,aes(x=EOO,y=preds,group=F_dep,colour=F_dep),size=1)+geom_line()+facet_wrap(~F_dep)
+b<-a+geom_line(data=df_preds_EOO,aes(y=uci,group=F_dep,colour=F_dep),lty=2)
+c<-b+geom_line(data=df_preds_EOO,aes(y=lci,fill=F_dep,group=F_dep,colour=F_dep,ymax=NULL,ymin=NULL),lty=2)
+d<-c+theme(panel.grid.major = element_line(colour =NA),panel.grid.minor = element_line(colour =NA),panel.border = element_rect(size=1.5,colour="black",fill=NA))
+e<-d+scale_colour_brewer("Forest dependancy",palette="Set1")+xlab(expression(paste("Species' global extent of occurance (",km^2,")",sep="")))
+e+ylab("Probability of presence")+theme(axis.text.x  = element_text(size=10),axis.text.y  = element_text(size=10))+ theme(legend.position="none")+scale_x_continuous(labels=comma)+geom_rug(sides="b",alpha=0.5,position='jitter')
+setwd("C:/Users/Phil/Documents/My Dropbox/Work/PhD/Publications, Reports and Responsibilities/Chapters/7. Spatial modelling of restoration/Rest_sp_mod/Figures")
+ggsave(filename="EOO_pres.pdf",width=8,height=4,units="in",dpi=400)
+
+
+setwd("C:/Users/Phil/Desktop/All_species/Species_grid_csv_2")
+Grid_extrap<-read.csv("Grid_Pres_Abs.csv")
+setwd("~/My Dropbox/Work/PhD/Publications, Reports and Responsibilities/Chapters/7. Spatial modelling of restoration/Data/Bird biodiversity data/Site_data/Traits")
+Terr<-read.csv("Traits_terrestrial_comp.csv")
+For_cov<-read.csv("Forest_cov.csv")
+Terr_grid<-merge(x=Grid_extrap,y=Terr,by.x="Sp_ID",by.y="Species_ID2")
+Terr_grid2<-merge(x=Terr_grid,y=For_cov,by="ET_ID")
+str(Terr_grid2)
+
+head(as.numeric(as.character(Terr_grid2$MEAN)))
+
+Terr_grid3<-data.frame(Sp_ID=Terr_grid2$Sp_ID,ET_ID=Terr_grid2$ET_ID,
+                       F_dep=Terr_grid2$Forest_dep,EOO=Terr_grid2$EOO,
+                       Mean_0.05=as.numeric(as.character(Terr_grid2$MEAN)))
+Terr_grid3$Mean_0.05<-ifelse(is.na(Terr_grid3$Mean_0.05),0,Terr_grid3$Mean_0.05)
+Sp1_pred<-predict(Averaged,newdata=Terr_grid3,backtransform=T,se.fit=T)
+Sp1$pred<-Sp1_pred$fit
+ggplot(Sp1,aes(x=EOO,y=pred,colour=F_dep))+geom_point()
+
+Terr_sp<-unique(Terr_grid3$Sp_ID)
+for (i in 2166:length(Terr_sp)){
+  Sp1<-subset(Terr_grid3,Sp_ID==Terr_sp[i])
+  Sp1_pred<-predict(Averaged,newdata=Sp1,backtransform=T,se.fit=T)
+  Sp1$pred<-Sp1_pred$fit
+  setwd("~/My Dropbox/Work/PhD/Publications, Reports and Responsibilities/Chapters/7. Spatial modelling of restoration/Data/Bird biodiversity data/Predictions")
+  write.csv(Sp1,paste("Sp",Terr_sp[i],".csv",sep=""),row.names=F)
+}

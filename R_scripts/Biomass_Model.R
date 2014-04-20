@@ -25,6 +25,55 @@ AGB<-read.csv("Biomass_sites_climate2.csv")
 head(AGB)
 AGB$GSH_Y<-AGB$Age*(AGB$GSH)
 
+plot(AGB$Soil,AGB$AGB)
+
+ggplot(AGB,aes(Age,AGB))+geom_point()+facet_wrap(~Chr_ID)
+
+Beck1<-subset(AGB,Chr_ID==28)
+Sald<-subset(AGB,Chr_ID==17)
+Cif<-subset(AGB,Chr_ID==26)
+Cif2<-subset(AGB,Chr_ID==27)
+Cif3<-subset(AGB,Chr_ID==25)
+Aide<-subset(AGB,Chr_ID==39)
+
+
+Beck_mod<-nls(AGB ~ SSasymp( Age, Asym, resp0, lrc), data = Beck1)
+Sald_mod<-nls(AGB ~ SSasymp( Age, Asym, resp0, lrc), data = Sald)
+Cif_mod<-nls(AGB ~ SSasymp( Age, Asym, resp0, lrc), data = Cif)
+Cif2_mod<-nls(AGB ~ SSasymp( Age, Asym, resp0, lrc), data = Cif2)
+Cif3_mod<-nls(AGB ~ SSasymp( Age, Asym, resp0, lrc), data = Cif3)
+Aide_mod<-nls(AGB ~ SSasymp( Age, Asym, resp0, lrc), data = Aide)
+
+
+
+Asymp<-c(coef(summary(Beck_mod))[1],coef(summary(Sald_mod))[1],
+  coef(summary(Cif_mod))[1],coef(summary(Cif2_mod))[1],
+  coef(summary(Cif3_mod))[1],coef(summary(Aide_mod))[1])
+
+R0_mod<-c(coef(summary(Beck_mod))[2],coef(summary(Sald_mod))[2],
+  coef(summary(Cif_mod))[2],coef(summary(Cif2_mod))[2],
+  coef(summary(Cif3_mod))[2],coef(summary(Aide_mod))[2])
+
+lrc_mod<-c(coef(summary(Beck_mod))[3],coef(summary(Sald_mod))[3],
+  coef(summary(Cif_mod))[3],coef(summary(Cif2_mod))[3],
+  coef(summary(Cif3_mod))[3],coef(summary(Aide_mod))[3])
+
+GS<-tapply(AGB$GS,AGB$Chr_ID,mean)
+
+subset(GS,as.numeric(rownames(GS))==28||17)
+
+
+plot(Asymp)
+
+
+
+head(AGB)
+
+
+
+P1<-ggplot(data=AGB,aes(Age,y=AGB))+geom_point()+facet_wrap(~Chr_ID)
+P1+geom_smooth(method="nls", formula=y~SSasymp(x, Asym, R0, lrc), color="red", se=F, fullrange=F)
+
 #remove sites >40 years in age
 #since I only want to predict to ~20 years
 #and AGB increases are non-linear 
@@ -91,8 +140,8 @@ Averaged<-model.avg(modsumm,fit=T)
 summary(AGB$GSH_Y)
 theme_set(theme_bw(base_size=14))
 AGB.preds<-data.frame(GSH_Y=seq(1160,176900,100),GS_Temp=mean(AGB$GS_Temp),GS_Prec=mean(AGB$GS_Prec))
-GSH_Y_preds<-predict(Averaged,newdata=AGB.preds,level=0,se.fit=T)
-AGB.preds$preds<-GSH_Y_preds$fit
+GSH_Y_preds<-predict(Mod2,newdata=AGB.preds,level=0,se.fit=T)
+AGB.preds$preds<-GSH_Y_preds
 AGB.preds$se<-GSH_Y_preds$se.fit
 GY_plot1<-ggplot(AGB,aes(x=GSH_Y,y=AGB))+geom_point(shape=1,size=2)
 GY_plot2<-GY_plot1+geom_line(data=AGB.preds,aes(y=preds^(1/Lamda)),size=1)
@@ -125,18 +174,6 @@ plots<-list(GY_plot5,Temp_plot3,ggp5)
 ml<-do.call(marrangeGrob, c(plots, list(nrow=1, ncol=1)))
 ggsave("AGB_plots.pdf", ml,width=8,height=6,units="in",dpi=600)
 
-#create predictions for precipitation
-summary(AGB$GS_Prec)
-AGB.preds_prec<-data.frame(GSH_Y=mean(AGB$GSH_Y),GS_Temp=mean(AGB$GS_Temp),GS_Prec=seq(45,392,1))
-Preds_prec<-predict(Averaged,newdata=AGB.preds_prec,level=0,se.fit=T)
-AGB.preds_prec$preds<-Preds_prec$fit
-AGB.preds_prec$se<-Preds_prec$se.fit
-
-GY_plot1<-ggplot(AGB,aes(x=GS_Prec,y=AGB))+geom_point(shape=1,size=4)
-GY_plot1+geom_line(data=AGB.preds_prec,aes(y=preds^2),size=1)
-
-ggplot(data=AGB.preds_prec,aes(y=preds^2,x=GS_Prec))+geom_line()+geom_line(data=AGB.preds_prec,aes(y=(preds+(1.96*se))^2),size=1,lty=2)+geom_line(data=AGB.preds_prec,aes(y=(preds-(1.96*se))^2),size=1,lty=2)
-
 
 #################################################
 ##predictions over the entire tropics############
@@ -148,43 +185,40 @@ GS<-raster("GSH.grd")
 GS2<-((GS*20))
 GS2<-aggregate(GS2,10)
 
-
-par(mfrow=c(1,2))
-#import precip raster
-setwd("C:/Users/Phil/Documents/My Dropbox/Work/PhD/Publications, Reports and Responsibilities/Chapters/7. Spatial modelling of restoration/Data/Climate/GS/Prec")
-GS_prec<-raster("GS_prec_mean.grd")
-GS_prec<-aggregate(GS_prec,10)
-setwd("C:/Users/Phil/Documents/My Dropbox/Work/PhD/Publications, Reports and Responsibilities/Chapters/7. Spatial modelling of restoration/Data/Climate/GS/Temp")
-GS_temp<-raster("GS_temp_mean.grd")
-GS_temp<-aggregate(GS_temp,10)
-
-#stack the three datasets
-GS_stack<-stack(GS2,GS_prec,GS_temp)
 #convert to df
-GS.df<-data.frame(rasterToPoints(GS_stack))
-colnames(GS.df)<-c("Long","Lat","GSH_Y","GS_Prec","GS_Temp")
+GS.df<-data.frame(rasterToPoints(GS2))
+colnames(GS.df)<-c("Long","Lat","GSH_Y")
 summary(GS.df)
 #get rid of NAs in dataframe
 GS.df$GSH_Y[is.na(GS.df$GSH_Y)]<-0
-GS.df$GS_Prec[is.na(GS.df$GS_Prec)]<-0
 #set max as maximum of those in AGB
 GS.df$GSH_Y<-ifelse(GS.df$GSH_Y>176909,176909,GS.df$GSH_Y)
-GS.df$GS_Prec<-ifelse(GS.df$GS_Prec>393,393,GS.df$GS_Prec)
-GS.df$GS_Temp<-ifelse(GS.df$GS_Temp>31,31,GS.df$GS_Temp)
 
 #make predictions based model averaging
-preds<-predict(Averaged,newdata=GS.df,level=0,se.fit=T)
+preds<-predict(Mod1,newdata=GS.df,level=0,se.fit=T)
 
-GS.df$preds<-preds$fit^2
+
+GS.df$preds<-preds
 GS.df$uci<-(preds$fit+(1.96*preds$se.fit))^2
 GS.df$lci<-(preds$fit-(1.96*preds$se.fit))^2
 GS.df$preds<-ifelse(GS.df$GSH_Y==0,yes=0,no=GS.df$preds)
 
-AGB_preds<-GS.df[,c(1,2,6,7,8)]
-AGB_melt<-melt(AGB_preds,id.vars=c("Long","Lat))
+AGB_preds2<-GS.df[,c(1,2,6,7,8)]
+AGB_preds2<-GS.df[,c(1,2,4)]
+AGB_preds2$preds<-AGB_preds2$preds^(1/Lamda)
+AGB_preds3<-subset(AGB_preds2,Lat>-40&Lat<40)
+
+AGB_melt<-melt(AGB_preds,id.vars=c("Long","Lat"))
 str(AGB_melt)
 
+
+GS_raster<-rasterFromXYZ(AGB_preds3)
+setwd("~/My Dropbox/Work/PhD/Publications, Reports and Responsibilities/Chapters/7. Spatial modelling of restoration/Rest_sp_mod/Results/Rasters")
+writeRaster(GS_raster,filename="AGB_trop.tif")
+
 #plot raw values
+
+
 library(ggplot2)
 theme_set(theme_bw(base_size=14))
 ggp <- ggplot(data=AGB_melt, aes(x=Long, y=Lat))+geom_raster(aes(fill=value))+facet_wrap(~variable,ncol=1)
